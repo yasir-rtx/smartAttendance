@@ -517,6 +517,22 @@ else:                                                           # if absensi.jso
     else:                                                       # generate object(date)
         generateKeyDate(date)
         generateListMahasiswa(date)
+        
+# Accelerate Recognition Process at First Time
+from PIL import Image
+accelPath = "img\\accel.jpg"
+img = cv2.imread(accelPath)
+img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
+img = Image.fromarray(img)
+img = img.resize((160,160))
+img = asarray(img)
+
+img = img.astype("float32")
+mean, std = img.mean(), img.std()
+img = (img - mean) / std
+
+img = expand_dims(img, axis=0)
+signature = MyFaceNet.predict(img)
 ###############################################################################################################################
 
 
