@@ -1,0 +1,5 @@
+{
+    "python.defaultInterpreterPath": "C:\\Users\\yasir\\anaconda3\\envs\\skripsiEnvironment\\python.exe",
+    "python.envFile": "${workspaceFolder}/.env",
+    "python.terminal.activateEnvironment": true
+}
