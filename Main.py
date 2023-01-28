@@ -50,6 +50,17 @@ from tkinter import ttk
 system("cls")
 x = datetime.now()
 date = str(x.day) + "/" + str(x.month) + "/" + str(x.year)
+
+# Load FaceNet model & HaarCascade file
+print("Load FaceNet model & HaarCascade file\n")
+# MyFaceNet = load_model("Model\\facenet_keras.h5")
+# HaarCascade = cv2.CascadeClassifier(cv2.samples.findFile(cv2.data.haarcascades + 'haarcascade_frontalface_default.xml'))
+
+# Training Face Path
+savePath = "Data\\Dataset\\train"
+if not exists(savePath):
+    mkdir(savePath)
+
 ###############################################################################################################################
 
 
