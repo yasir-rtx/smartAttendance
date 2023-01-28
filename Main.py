@@ -71,8 +71,6 @@ def generateListMahasiswa(date):
             with open(absensi_path, "r") as absensi:
                 # Generate mahasiswa value into date object in absensi.json
                 y = {nobp:{
-                    "nobp": nobp,
-                    "nama": value[0]["nama"],
                     "date": date,
                     "time": "-",
                     "ket": "Tidak Hadir"
@@ -123,8 +121,6 @@ def generateNewNobp(nobp):
         newData.append(
             {
                 nobp:{
-                    "nobp": value["nobp"],
-                    "nama": value["nama"],
                     "date": dates,
                     "time": "-",
                     "ket": "Tidak Hadir"
@@ -236,8 +232,6 @@ def takeAttendance(nobp):
                     newData.append(
                         {
                             nobp:{
-                                "nobp": value["nobp"],
-                                "nama": value["nama"],
                                 "date": dates,
                                 "time": times,
                                 "ket": "Hadir"
@@ -436,10 +430,13 @@ def insertTreeview(newDate):
         data = absensi[date]
         for i, mahasiswa in enumerate(data):
             for key, value in mahasiswa.items():
+                with open(mahasiswa_path, "r") as file_mhs:
+                    mhs = json.load(file_mhs)
+                    nama = mhs[key][0]["nama"]
                 if i % 2 == 0:
-                    table.insert(parent="", index="end", iid=i, text="", values=(i+1, value["nobp"], value["nama"], value["date"], value["time"], value["ket"]), tags="even")
+                    table.insert(parent="", index="end", iid=i, text="", values=(i+1, key, nama, value["date"], value["time"], value["ket"]), tags="even")
                 else:
-                    table.insert(parent="", index="end", iid=i, text="", values=(i+1, value["nobp"], value["nama"], value["date"], value["time"], value["ket"]), tags="odd")
+                    table.insert(parent="", index="end", iid=i, text="", values=(i+1, key, nama, value["date"], value["time"], value["ket"]), tags="odd")
 ###############################################################################################################################
 
 
@@ -449,7 +446,8 @@ def insertTreeview(newDate):
 ###############################################################################################################################
 system("cls")
 x = datetime.now()
-date = str(x.day) + "/" + str(x.month) + "/" + str(x.year)
+# date = str(x.day) + "/" + str(x.month) + "/" + str(x.year)
+date = "30/1/2023"
 
 # Load FaceNet model & HaarCascade file
 print("Load FaceNet model & HaarCascade file\n")
