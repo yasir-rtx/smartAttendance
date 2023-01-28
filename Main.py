@@ -85,6 +85,361 @@ def generateListMahasiswa(date):
                 print(f"Key({nobp}) is generated into object({date})\n")
     print("Mahasiswa Key is generated\n")
 ########################################################################
+
+# Nobp check
+def cekNobp(nobp):
+    y = datetime.now()
+    dates = str(y.day) + "/" + str(y.month) + "/" + str(y.year)
+    with open(absensi_path, "r") as absensi:
+        data = json.load(absensi)
+        temp = data[dates]
+        status = 0
+        for mahasiswa in temp:
+            for key, value in mahasiswa.items():
+                if key == nobp:
+                    status = 1
+        # print(status)   # Jika status = 0, artinya nobp belum ada di dalam absensi.json
+        return status
+    
+# Generate new nobp in absensi.json
+def generateNewNobp(nobp):
+    y = datetime.now()
+    dates = str(y.day) + "/" + str(y.month) + "/" + str(y.year)
+    with open(absensi_path, "r") as absensi:
+        data = json.load(absensi)
+        temp = data[dates]
+        
+            
+        newData = []
+        for y in temp:
+            newData.append(y)
+        
+        # print(newData)
+        
+        with open(mahasiswa_path, "r") as mahasiswa:
+            entry = json.load(mahasiswa)
+            value = entry[nobp][0]
+        
+        newData.append(
+            {
+                nobp:{
+                    "nobp": value["nobp"],
+                    "nama": value["nama"],
+                    "date": dates,
+                    "time": "-",
+                    "ket": "Tidak Hadir"
+        }})
+        
+    # print(newData)
+    data.update({dates:newData})
+    # print(data)
+    json.dump(data, open(absensi_path, "w"), indent=4)
+
+# Take face images and generate signature
+def pose(nobp, nama, password):
+    # print(f"Nobp : {nobp} | Nama : {nama} | Password : {password}")
+    cap = cv2.VideoCapture(1)
+    label = nobp + " - " + nama + "\\"
+    labelPath = savePath + label
+    print(labelPath)
+    if not exists(labelPath):
+        training.destroy()
+        mkdir(labelPath)
+        for i in range(3):
+            desc = "front" if i==0 else "side" if i==1 else "tambahan"
+            messagebox.showinfo(f"Tahap {i}", f"Deskripsi Pose {desc}")
+            sum = 0
+            while 1:
+                key = cv2.waitKey(5) & 0xFF
+                _, imgVideo = cap.read()
+                FaceDetect = HaarCascade.detectMultiScale(imgVideo, 1.3, 5)
+                if len(FaceDetect) > 0:
+                    x1, y1, w, h = FaceDetect[0]
+                else :
+                    x1, y1, w, h = 1,1,10,10
+                x1, y1 = abs(x1), abs(y1)
+                x2, y2 = x1+w, y1+h
+                img = cv2.cvtColor(imgVideo, cv2.COLOR_BGR2RGB)
+                img = fromarray(img)
+                img_array = asarray(img)
+                face = img_array[y1:y2, x1:x2]
+                face = fromarray(face)
+                face_save = face.resize((160,160))
+                face = asarray(face_save)
+                if key == 13:
+                    fileName = labelPath + nama + "_" + desc + "_" + str(sum) + ".jpg"
+                    print(f"saving : {fileName}")
+                    face_save.save(fileName)
+                    sum+=1
+                cv2.rectangle(imgVideo, (x1,y1), (x2,y2), (0,255,0), 2)
+                cv2.imshow('Rekam Wajah', imgVideo)
+                if sum == 10:
+                    break
+                if key == 27:
+                    break
+            cv2.destroyAllWindows()
+        
+        for files in listdir(labelPath):
+            file = labelPath + files
+            face_raw = cv2.imread(file)
+            face = cv2.cvtColor(face_raw, cv2.COLOR_BGR2RGB)
+            face = fromarray(face)
+            face = face.resize((160,160))
+            face = asarray(face)
+            face = face.astype('float32')
+            mean, std = face.mean(), face.std()
+            face = (face - mean) / std
+
+            face = expand_dims(face, axis=0)
+            print(f"Training file : {files}")
+            signature = MyFaceNet.predict(face)
+            faceDatabase[nobp] = signature
+            
+        mySignature = open("Data\\signature.pkl", "wb")
+        pickle.dump(faceDatabase, mySignature)
+        mySignature.close()
+        print("Face signature is created\n")
+        
+        with open(mahasiswa_path, "r") as file:
+            data = json.load(file)
+            
+            data.update({nobp:[{"nobp": nobp, "nama": nama, "password": password}]})
+            json.dump(data, open(mahasiswa_path, "w"), indent=4)
+            
+        # Insert new mahasiswa into absensi.json
+        if not cekNobp(nobp):
+            generateNewNobp(nobp)
+        
+        messagebox.showinfo("Smart Attendance", "Data Wajah Berhasil Direkam")
+    else:
+        print("Label sudah ada")
+        messagebox.showerror("Smart Attendance", "Label sudah ada.")
+    cap.release()
+############################################################################################
+
+# Take Attendance
+def takeAttendance(nobp): 
+    # dates="14/12/2022"    # debug fungsi untuk memastikan perubahan hanya terjadi di hari itu
+    y = datetime.now()
+    dates = str(y.day) + "/" + str(y.month) + "/" + str(y.year)
+    times = str(y.hour) + ":" + str(y.minute) + ":" + str(y.second)
+    with open(absensi_path, "r") as absensi:
+        data = json.load(absensi)
+        temp = data[dates]
+        
+        newData = []
+        for mahasiswa in temp:
+            # print(mahasiswa)        # dictionary mahasiswa dalam objek date
+            for key, value in mahasiswa.items():
+                if key == nobp:
+                    # print("mahasiswa ditemukan")
+                    newData.append(
+                        {
+                            nobp:{
+                                "nobp": value["nobp"],
+                                "nama": value["nama"],
+                                "date": dates,
+                                "time": times,
+                                "ket": "Hadir"
+                    }})
+                else:
+                    # print("mahasiswa tidak ditemukan")
+                    newData.append(mahasiswa)
+
+    # print(newData)  # debug nilai newdata sebelum di dump
+    data.update({dates:newData})
+    # print(data)
+    json.dump(data, open(absensi_path, "w"), indent=4)
+    print(f"{nobp} telah hadir pada {dates}")
+    messagebox.showinfo("Rekam Absensi", "Absensi anda untuk hari ini berhasil direkam")
+#####################################################################################
+
+# Pre Ambil Absensi
+def preAbsen():
+    with open(mahasiswa_path, "r") as mahasiswa:
+        data = json.load(mahasiswa)
+        # Check mahasiswa.json is empty
+        if data == {}:
+            messagebox.showwarning("Ambil Absensi", "Absensi Tidak dapat dilakukan.\n\nCause    : Tidak data wajah yang tersimpan.\nSolution: Lakukan Training Wajah terlebih dahulu.")
+        else:
+            # messagebox.showinfo("Ambil Absensi", "Ambil absensi dapat dilakukan")
+            ambilAbsensi()
+
+def askPassword():
+    global passForm
+    passForm = Toplevel()
+    passForm.title("Ambil Absensi")
+    passForm.iconbitmap("D:/Dev/Python/tkinter/img/ok.ico")
+    w,h = 400,100
+    x,y = int((screenWidth/2) - (w/2)), int((screenHeight/2) - (h/2))
+    passForm.geometry(f"{w}x{h}+{x}+{y-50}")
+    
+    labelpassword = Label(passForm, text="Password: ")
+    # global passwordForm
+    passwordForm = Entry(passForm, width=40)
+    btnOk = Button(passForm, text="OK", width=10, command=lambda: getPassword(passwordForm.get()))
+    btnCancel = Button(passForm, text="CANCEL", width=10, command=passForm.destroy)
+    
+    # Grid Configuration for Ambil Absensi Form
+    passForm.columnconfigure(0, weight=1)
+    passForm.columnconfigure(1, weight=1)
+    passForm.columnconfigure(2, weight=1)
+    passForm.columnconfigure(3, weight=1)
+    passForm.rowconfigure(0, weight=1)
+    passForm.rowconfigure(1, weight=1)
+    passForm.rowconfigure(2, weight=1)
+    passForm.rowconfigure(3, weight=1)
+    
+    # render form
+    labelpassword.grid(row=1, column=1, sticky='E')
+    passwordForm.grid(row=1, column=2, columnspan=3)
+    btnOk.grid(row=2, column=1, columnspan=2)
+    btnCancel.grid(row=2, column=2, columnspan=2)
+    
+def getPassword():
+    # passForm.destroy()
+    # print(x)
+    askPassword()
+    return x
+
+# Ambil Absensi
+def absen(nobp):
+    absensiForm.destroy()
+    signatureBase = faceDatabase
+    status = 0
+    identity = 0
+    for key, value in signatureBase.items():
+        if key == nobp:
+            status = 1
+            print(f"Signature {nobp} found")
+            
+            cap = cv2.VideoCapture(1)
+            t=1
+            while t:
+                # time.sleep(0)
+                _, imgVideo = cap.read()
+                FaceDetect = HaarCascade.detectMultiScale(imgVideo, 1.3, 10)
+                
+                for (x1, y1, width, height) in FaceDetect:
+                    x1, y1 = abs(x1), abs(y1)
+                    x2, y2 = x1 + width, y1 + height
+                    
+                    img = cv2.cvtColor(imgVideo, cv2.COLOR_BGR2RGB)
+                    img = fromarray(img)
+                    img_array = asarray(img)
+                    
+                    face = img_array[y1:y2, x1:x2]
+                    
+                    face = fromarray(face)
+                    face = face.resize((160,160))
+                    face = asarray(face)
+                    
+                    face = face.astype('float32')
+                    mean, std = face.mean(), face.std()
+                    face = (face - mean) / std
+                    
+                    face = expand_dims(face, axis=0)
+                    signature = MyFaceNet.predict(face)
+                    
+                    distance = linalg.norm(value - signature)
+                    if (distance > 7):
+                        cv2.rectangle(imgVideo, (x1,y1), (x2,y2), (0,0,255), 2)
+                        cv2.rectangle(imgVideo, (x1,y1-40), (x2,y1), (0,0,255), -2)
+                        cv2.putText(imgVideo, "Unknown", (x1,y1-10), cv2.FONT_HERSHEY_SIMPLEX, 1, (255,255,255), 1, cv2.LINE_AA)
+                    else:
+                        identity = key
+                        cv2.rectangle(imgVideo, (x1,y1), (x2,y2), (0,255,0), 2)
+                        cv2.rectangle(imgVideo, (x1,y1-40), (x2,y1), (0,255,0), -2)
+                        cv2.putText(imgVideo, identity + ", " + str(round(distance, 2)), (x1,y1-10), cv2.FONT_HERSHEY_SIMPLEX, 1, (255,255,255), 1, cv2.LINE_AA)
+                        
+                cv2.imshow('Face Recognition', imgVideo)   
+                
+                # # Jika ingin proses verifikasi berjalan otomatis
+                # time.sleep(5)
+                # break
+                # Menampilkan proses verifiaksi di kamera
+                k = cv2.waitKey(5) & 0xFF
+                if k == 27:
+                    t-=1
+            cv2.destroyAllWindows()
+            cap.release()
+        
+    if status != 1:
+        messagebox.showwarning("Rekam Absensi", "Data anda tidak ditemukan.\n Periksa nobp!")        
+    else:
+        if identity == 0:
+            messagebox.showwarning("Rekam Absensi", "Wajah tidak cocok. Silahkan isi password jika nobp identitas anda benar")
+            def askPassword():
+                global formPassword
+                formPassword = Toplevel()
+                formPassword.title("Ambil Password")
+                formPassword.iconbitmap("D:/Dev/Python/tkinter/img/ok.ico")
+                w,h = 400,100
+                x,y = int((screenWidth/2) - (w/2)), int((screenHeight/2) - (h/2))
+                formPassword.geometry(f"{w}x{h}+{x}+{y-50}")
+                label = Label(formPassword, text="Password: ")
+                label.pack()
+                passw = Entry(formPassword, width=40)
+                passw.pack()
+                btnOk = Button(formPassword, text="OK", width=10, command=lambda: getPassword(passw.get()))
+                btnCancel = Button(formPassword, text="CANCEL", width=10, command=formPassword.destroy)
+                btnOk.pack()
+                btnCancel.pack()
+            
+            def getPassword(passwordAsk):
+                formPassword.destroy()
+                # print(f"Password Input : {passwordAsk}")
+            
+                # Ambil password dari mahasiswa.json
+                with open(mahasiswa_path, "r") as mahasiswa:
+                    data = json.load(mahasiswa)
+                    temp = data[nobp]
+                    passwordMhs =  temp[0]["password"]
+                    print(f"Password Asli : {passwordMhs}")
+                
+                if passwordAsk != "":
+                    print(f"Password Input : {passwordAsk}")
+                    if passwordAsk == passwordMhs:
+                        takeAttendance(nobp)
+                        # print("password cocok")
+                    else:
+                        messagebox.showerror("Ambil Absensi", "Password Salah")
+                        askPassword()
+                else:
+                    # print("Password is empty")
+                    messagebox.showerror("Ambil Absensi", "Password Kosong")
+                    askPassword()
+                
+            
+            askPassword()
+            
+            
+        else:
+            # check if absensi.json and mahasiswa.json is ready
+            if absensi_path:
+                print("absensi.json is ready")
+            if mahasiswa_path:
+                print("mahasiswa.json is ready")
+            takeAttendance(nobp)
+            
+# Show record of "rekap absensi"
+def insertTreeview(newDate):
+    date = newDate
+    # Delete treeviw/table
+    for record in table.get_children():
+        # print(record)
+        table.delete(record)
+
+    # update treeview/table
+    with open(absensi_path, "r") as file:
+        absensi = json.load(file)
+        data = absensi[date]
+        for i, mahasiswa in enumerate(data):
+            for key, value in mahasiswa.items():
+                if i % 2 == 0:
+                    table.insert(parent="", index="end", iid=i, text="", values=(i+1, value["nobp"], value["nama"], value["date"], value["time"], value["ket"]), tags="even")
+                else:
+                    table.insert(parent="", index="end", iid=i, text="", values=(i+1, value["nobp"], value["nama"], value["date"], value["time"], value["ket"]), tags="odd")
 ###############################################################################################################################
 
 
@@ -98,8 +453,8 @@ date = str(x.day) + "/" + str(x.month) + "/" + str(x.year)
 
 # Load FaceNet model & HaarCascade file
 print("Load FaceNet model & HaarCascade file\n")
-# MyFaceNet = load_model("Model\\facenet_keras.h5")
-# HaarCascade = cv2.CascadeClassifier(cv2.samples.findFile(cv2.data.haarcascades + 'haarcascade_frontalface_default.xml'))
+MyFaceNet = load_model("Model\\facenet_keras.h5")
+HaarCascade = cv2.CascadeClassifier(cv2.samples.findFile(cv2.data.haarcascades + 'haarcascade_frontalface_default.xml'))
 
 # Directory Data
 dataPath = "Data\\"
@@ -178,12 +533,76 @@ else:                                                           # if absensi.jso
 # Sub Menu 1 - Training Wajah
 def trainingData() :
     print("Open submenu 1 - Training Wajah")        # debug status button
-    return 0
+    global training
+    training = Toplevel()
+    training.title("Training Data")
+    training.iconbitmap("D:/Dev/Python/tkinter/img/ok.ico")
+    w,h = 400,200
+    x,y = int((screenWidth/2) - (w/2)), int((screenHeight/2) - (h/2))
+    training.geometry(f"{w}x{h}+{x}+{y-50}")
+    
+    labelnobp = Label(training, text="NOBP: ")
+    nobp = Entry(training, width=40)
+    labelnama = Label(training, text="NAMA: ")
+    nama = Entry(training, width=40)
+    labelpassword = Label(training, text="PASSWORD: ")
+    password = Entry(training, width=40)
+    btnOk = Button(training, text="OK", width=10, command=lambda: pose(nobp.get(), nama.get(), password.get()))
+    btnCancel = Button(training, text="CANCEL", width=10, command=training.destroy)
+    
+    # Grid Configuration for Training Form
+    training.columnconfigure(0, weight=1)
+    training.columnconfigure(1, weight=1)
+    training.columnconfigure(2, weight=1)
+    training.columnconfigure(3, weight=1)
+    training.rowconfigure(0, weight=1)
+    training.rowconfigure(1, weight=1)
+    training.rowconfigure(2, weight=1)
+    training.rowconfigure(3, weight=1)
+    training.rowconfigure(4, weight=1)
+    training.rowconfigure(5, weight=1)
+    
+    # render form
+    labelnobp.grid(row=1, column=1, sticky='E')
+    nobp.grid(row=1, column=2, columnspan=3)
+    labelnama.grid(row=2, column=1, sticky='E')
+    nama.grid(row=2, column=2, columnspan=3)
+    labelpassword.grid(row=3, column=1, sticky='E')
+    password.grid(row=3, column=2, columnspan=3)
+    btnOk.grid(row=4, column=1, columnspan=2)
+    btnCancel.grid(row=4, column=2, columnspan=2)
 
 # Sub Menu 2 - Ambil Abensisi
 def ambilAbsensi() :
     print("Open submenu 2 - Ambil Abensisi")        # debug status button
-    return 0
+    global absensiForm
+    absensiForm = Toplevel()
+    absensiForm.title("Ambil Absensi")
+    absensiForm.iconbitmap("D:/Dev/Python/tkinter/img/ok.ico")
+    w,h = 400,100
+    x,y = int((screenWidth/2) - (w/2)), int((screenHeight/2) - (h/2))
+    absensiForm.geometry(f"{w}x{h}+{x}+{y-50}")
+    
+    labelnobp = Label(absensiForm, text="NOBP: ")
+    nobp = Entry(absensiForm, width=40)
+    btnOk = Button(absensiForm, text="OK", width=10, command=lambda: absen(nobp.get()))
+    btnCancel = Button(absensiForm, text="CANCEL", width=10, command=absensiForm.destroy)
+    
+    # Grid Configuration for Ambil Absensi Form
+    absensiForm.columnconfigure(0, weight=1)
+    absensiForm.columnconfigure(1, weight=1)
+    absensiForm.columnconfigure(2, weight=1)
+    absensiForm.columnconfigure(3, weight=1)
+    absensiForm.rowconfigure(0, weight=1)
+    absensiForm.rowconfigure(1, weight=1)
+    absensiForm.rowconfigure(2, weight=1)
+    absensiForm.rowconfigure(3, weight=1)
+    
+    # render form
+    labelnobp.grid(row=1, column=1, sticky='E')
+    nobp.grid(row=1, column=2, columnspan=3)
+    btnOk.grid(row=2, column=1, columnspan=2)
+    btnCancel.grid(row=2, column=2, columnspan=2)
 
 # Sub Menu 3 / Rekap Absensi
 def rekapAbsensi() :
@@ -271,7 +690,6 @@ def rekapAbsensi() :
     # scrollbar.grid(row=0, column=1, sticky="NS")
     # scrollbar.pack(side=RIGHT, fill=Y)
     scrollbar.pack(side=RIGHT, fill=Y)
-    return 0
 #=============================================================================================================================#
 
 
@@ -335,7 +753,7 @@ mainTitle.grid(row=2, column=2)
 
 # Button Frame
 button1 = Button(buttonFrame, text="TRAINING WAJAH", padx=50, pady=25, command=trainingData)
-button2 = Button(buttonFrame, text="AMBIL ABSENSI", padx=50, pady=25, command=ambilAbsensi)
+button2 = Button(buttonFrame, text="AMBIL ABSENSI", padx=50, pady=25, command=preAbsen)
 button3 = Button(buttonFrame, text="REKAP ABSENSI", padx=50, pady=25, command=rekapAbsensi)
 button1.grid(row=0, column=2)
 button2.grid(row=0, column=3)
